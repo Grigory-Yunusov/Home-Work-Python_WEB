@@ -635,7 +635,7 @@ class Controller():
         note_text = input('Введіть нотатку: ')
         tags = input('Введіть теги: ')
         record.add_note(note_text, tags)
-        self.view.render(f"Заметка додана до контакта {name_normal}.")
+        self.view.render(f"Нотатку додано до контакта {name_normal}.")
 
     def do_find_note_by_name(self, line):
         name = self.line_to_name(line)
@@ -772,9 +772,7 @@ class CommandValidator(Validator):
             if len(x) < 2:
                 raise ValidationError(message="Введіть: <Ім'я>", cursor_position=len(text))
 
-controller = Controller()
-
-def handle_command(command):
+def handle_command(controller, command):
     if command.lower().startswith("add_name"):
         return controller.do_add_name()
     elif command.lower().startswith("delete_name"):
@@ -876,7 +874,7 @@ def main():
             controller.do_save()
             print("Good bye!")
             break
-        response = handle_command(user_input)
+        response = handle_command(controller, user_input)
 
 if __name__ == "__main__":
     main()

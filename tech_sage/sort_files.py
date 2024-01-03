@@ -1,7 +1,7 @@
 import sys
 import shutil
 from pathlib import Path
-from .normalize_for_sort import normalize
+from normalize_for_sort import normalize
 from rich.console import Console
 from rich.table import Table
 
