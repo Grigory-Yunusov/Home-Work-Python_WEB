@@ -14,7 +14,7 @@ from prompt_toolkit.validation import Validator, ValidationError
 from rich.console import Console
 from rich.table import Table
 import re
-from .sort_files import run
+from sort_files import run
 
 console = Console()
 COMMANDS = {'add_name': ['add_name', 'Додавання нового контакту у довідник'],
@@ -291,23 +291,43 @@ class NoteRecord(Record):
         return f"NoteRecord(name={self.name.value}, notes={notes_str})"
 
 
-class Controller():
+class View(ABC):
+
+    @abstractmethod
+    def render(self, data):
+        pass
+
+
+class ConsoleView(View):
     def __init__(self):
+        self.console = Console()
+
+    def render(self, data):
+        if isinstance(data, Table):
+            self.console.print(data)
+        elif isinstance(data, str):
+            self.console.print(data)
+        else:
+            raise ValidationError("Невідомий тип даних для рендерингу в ConsoleView")
+
+class Controller():
+    def __init__(self, view: View):
         super().__init__()
         self.book = AddressBook()
+        self.view = view
 
     def do_exit(self):
         self.book.dump()
-        print("Адресна книга збережена! Вихід...")
+        self.view.render("Адресна книга збережена! Вихід...")
         return True
 
     def do_save(self):
         self.book.dump()
-        print("Адресна книга збережена!")
+        self.view.render("Адресна книга збережена!")
 
     def do_load(self):
         self.book.load()
-        print("Адресна книга відновлена")
+        self.view.render("Адресна книга відновлена")
 
     def do_help(self):
         table = Table(show_header=True, header_style="bold blue", border_style='bold green')
@@ -317,8 +337,8 @@ class Controller():
         for commands in COMMANDS.values():
             table.add_row(commands[0], commands[1])
             table.add_section()
-        console.print(table)
-        print('Після введення команди натисни Enter')
+        self.view.render(table)
+        self.view.render('Після введення команди натисни Enter')
 
     def line_to_name (self, line):
         line = line.strip().split(' ')
@@ -332,134 +352,134 @@ class Controller():
         while True:
             line = input("Введіть: <Ім'я>: ")
             if not line:
-                print("Будь ласка введіть: <Ім'я>: ")
+                self.view.render("Будь ласка введіть: <Ім'я>: ")
                 continue
             name = self.line_to_name(line)
             if name in self.book:
-                print(f"Контакт з ім'ям '{name}' вже існує.")
+                self.view.render(f"Контакт з ім'ям '{name}' вже існує.")
                 return
             try:
                 record = NoteRecord(name)
                 self.book.add_record(record)
-                print(f"Контакт з ім'ям '{name}' успішно створено.")
+                self.view.render(f"Контакт з ім'ям '{name}' успішно створено.")
                 break
             except ValueError as e:
-                print(f"Помилка при створенні контакту: {e}")
+                self.view.render(f"Помилка при створенні контакту: {e}")
 
     def do_delete_name(self):
         while True:
             line = input("Введіть: <Ім'я>: ")
             if not line:
-                print("Будь ласка введіть: <Ім'я>: ")
+                self.view.render("Будь ласка введіть: <Ім'я>: ")
                 continue
             name = self.line_to_name(line)
             if not (name in self.book):
-                print(f"Контакт з ім'ям '{name}' не існує.")
+                self.view.render(f"Контакт з ім'ям '{name}' не існує.")
                 return
             try:
                 record = NoteRecord(name)
                 self.book.delete_record(record)
-                print(f"Контакт з ім'ям '{name}' успішно видалено.")
+                self.view.render(f"Контакт з ім'ям '{name}' успішно видалено.")
                 break
             except ValueError as e:
-                print(f"Помилка при видаленні контакту: {e}")
+                self.view.render(f"Помилка при видаленні контакту: {e}")
 
     def do_add_phone(self, line):
         name = self.line_to_name(line)
         record = self.book.get(name)
 
         if not record:
-            print(f"Контакт з ім'ям '{name}' не знайдено.")
+            self.view.render(f"Контакт з ім'ям '{name}' не знайдено.")
             return
         phone = input ('Введіть номер телефону: 10 цифр:  ')
 
         try:
             record.add_phone(phone)
-            print(f"Телефон '{phone}' додано до контакта '{name}'.")
+            self.view.render(f"Телефон '{phone}' додано до контакта '{name}'.")
         except ValueError as e:
-            print(f"Помилка при додаванні телефону: {e}")
+            self.view.render(f"Помилка при додаванні телефону: {e}")
 
     def do_delete_phone(self, line):
         name = self.line_to_name(line)
         record = self.book.get(name)
 
         if not record:
-            print(f"Контакт з ім'ям '{name}' не знайдено.")
+            self.view.render(f"Контакт з ім'ям '{name}' не знайдено.")
             return
         phone = input ('Введіть номер телефону: 10 цифр:  ')
 
         try:
             record.remove_phone(phone)
         except ValueError as e:
-            print(f"Помилка при видаленні телефону: {e}")
+            self.view.render(f"Помилка при видаленні телефону: {e}")
 
     def do_add_birthday(self, line):
         name = self.line_to_name(line)
         record = self.book.get(name)
 
         if not record:
-            print(f"Контакт з ім'ям '{name}' не знайдено.")
+            self.view.render(f"Контакт з ім'ям '{name}' не знайдено.")
             return
         birthday_str = input ('Введіть дату дня народження у форматі РРРР-ММ-ДД:  ')
         try:
             record.add_birthday(birthday_str)
-            print(f"День народження {birthday_str} додано для контакта '{name}'.")
+            self.view.render(f"День народження {birthday_str} додано для контакта '{name}'.")
         except ValueError as e:
-            print(f"Помилка при додаванні дні народження: {e}")
+            self.view.render(f"Помилка при додаванні дні народження: {e}")
 
     def do_add_email(self, line):
         name = self.line_to_name(line)
         record = self.book.get(name)
         if not record:
-            print(f"Контакт з ім'ям '{name}' не знайдено.")
+            self.view.render(f"Контакт з ім'ям '{name}' не знайдено.")
             return
         email = input('Введіть email:  ')
         try:
             record.add_email(email)
-            print(f"Email '{email}' додано до контакта '{name}'.")
+            self.view.render(f"Email '{email}' додано до контакта '{name}'.")
         except IndexError as e:
-            print(f"Помилка при додаванні email: {e}")
+            self.view.render(f"Помилка при додаванні email: {e}")
 
     def do_delete_email(self, line):
         name = self.line_to_name(line)
         record = self.book.get(name)
         if not record:
-            print(f"Контакт з ім'ям '{name}' не знайдено.")
+            self.view.render(f"Контакт з ім'ям '{name}' не знайдено.")
             return
         try:
             record.delete_email()
-            print(f"E-mail контакта '{name}' видалено.")
+            self.view.render(f"E-mail контакта '{name}' видалено.")
         except IndexError as e:
-            print(f"Помилка при видаленні email: {e}")
+            self.view.render(f"Помилка при видаленні email: {e}")
 
     def do_add_address(self, line):
         name = self.line_to_name(line)
         record = self.book.get(name)
         if not record:
-            print(f"Контакт з ім'ям '{name}' не знайдено.")
+            self.view.render(f"Контакт з ім'ям '{name}' не знайдено.")
             return
         address = input('Введіть адресу: ')
         try:
             record.add_address(address)
-            print(f"Адреса '{address}' додана до контакта '{name}'.")
+            self.view.render(f"Адреса '{address}' додана до контакта '{name}'.")
         except ValueError as e:
-            print(f"Помилка при додаванні адреси: {e}")
+            self.view.render(f"Помилка при додаванні адреси: {e}")
 
     def do_delete_address(self, line):
         name = self.line_to_name(line)
         record = self.book.get(name)
         if not record:
-            print(f"Контакт з ім'ям '{name}' не знайдено.")
+            self.view.render(f"Контакт з ім'ям '{name}' не знайдено.")
             return
         try:
             record.delete_address()
-            print(f"Адреса видалена для контакта '{name}'.")
+            self.view.render(f"Адреса видалена для контакта '{name}'.")
         except ValueError as e:
-            print(f"Помилка при видаленні адреси: {e}")
+            self.view.render(f"Помилка при видаленні адреси: {e}")
 
     def do_list_book(self):
         if not self.book.data:
-            print("Адресна книга порожня.")
+            self.view.render("Адресна книга порожня.")
         else:
             table = Table(show_header=True, header_style="bold magenta", border_style='bold violet')
             table.add_column('Name')
@@ -474,11 +494,11 @@ class Controller():
                 email_info = record.email.value if record.email else ""
                 table.add_row(record.name.value, phones, address_info, email_info, birthday_info)
                 table.add_section()
-            console.print(table)
+            self.view.render(table)
 
     def do_list_note(self):
         if not self.book.data:
-            print("Адресна книга порожня.")
+            self.view.render("Адресна книга порожня.")
         else:
             table = Table(show_header=True, header_style="bold cyan", border_style='bold yellow')
             table.add_column('Author')
@@ -490,7 +510,7 @@ class Controller():
                     for h in record.notes:
                         table.add_row(name, h.value, h.tags, h.date)
                         table.add_section()
-            console.print(table)
+            self.view.render(table)
 
     def do_find_record_by_trem(self, line):
         matching_records = self.book.find_by_term(line)
@@ -508,9 +528,9 @@ class Controller():
                 email_info = record.email.value if record.email else ""
                 table.add_row(record.name.value, phones, address_info, email_info, birthday_info)
                 table.add_section()
-            console.print(table)
+            self.view.render(table)
         else:
-            print("Даних із таким текстом не існує!!!.")
+            self.view.render("Даних із таким текстом не існує!!!.")
     
     def do_find_notes_by_term(self, term):
         term = term.strip().lower()
@@ -531,9 +551,9 @@ class Controller():
         
         console = Console()
         if found_notes:
-            console.print(table)
+            self.view.render(table)
         else:
-            print("Даних із таким текстом не існує!!!.")
+            self.view.render("Даних із таким текстом не існує!!!.")
     
     def do_days_to_birthday(self, line, when=9999): # >>>birthday John (до дня народження контакту John, залишилось 354 днів)
         if when == 9999:
@@ -550,14 +570,14 @@ class Controller():
         if record:
             days_until_birthday = record.days_to_birthday()
             if 0 < days_until_birthday <= when:
-#                print(f"До дня народження {name} {record.birthday} залишилось {days_until_birthday} днів\n")
+#                self.view.render(f"До дня народження {name} {record.birthday} залишилось {days_until_birthday} днів\n")
                 phones = '; '.join(str(phone) for phone in record.phones)
                 birthday_info = record.birthday.value if record.birthday else ""
                 email_info = record.email.value if record.email else ""
                 table.add_row(record.name.value, phones, email_info, birthday_info, str(days_until_birthday))
                 table.add_section()
             elif days_until_birthday == 0:
-#                print(f"День народження контакту {name} сьогодні!!!\n")
+#                self.view.render(f"День народження контакту {name} сьогодні!!!\n")
                 phones = '; '.join(str(phone) for phone in record.phones)
                 birthday_info = record.birthday.value if record.birthday else ""
                 email_info = record.email.value if record.email else ""
@@ -566,13 +586,13 @@ class Controller():
             elif (days_until_birthday > when or days_until_birthday == -1) and (when != 9999):
                 return
             else:
-                print(f"День народження {name} не додано в книгу контактів\n")
+                self.view.render(f"День народження {name} не додано в книгу контактів\n")
             if when == 9999:
-                console.print (table)
+                self.view.render(table)
             else:
                 return (days_until_birthday)
         else:
-            print(f"Контакт '{name}' не знайдений")
+            self.view.render(f"Контакт '{name}' не знайдений")
             
     def do_when (self, days):
         table = Table(show_header=True, header_style="bold magenta", border_style='bold violet')
@@ -582,10 +602,10 @@ class Controller():
         table.add_column("Birthday")
         table.add_column("Days to b-day")
         if not days:
-            print ("Введіть 'when' та кількість днів, на які хочете побачити прогноз")
+            self.view.render ("Введіть 'when' та кількість днів, на які хочете побачити прогноз")
             return
         if not days.isdigit():
-            print ("Введіть кількість днів додатнім числовим значенням")
+            self.view.render ("Введіть кількість днів додатнім числовим значенням")
             return
         for record in self.book.values():
             phones = '; '.join(str(phone) for phone in record.phones)
@@ -600,28 +620,28 @@ class Controller():
                 table.add_row(record.name.value, phones, email_info, birthday_info, 'TOMORROW!!!')
             
             table.add_section()
-        console.print(table)
+        self.view.render(table)
 
 
     def do_add_note(self, line):
         name_normal = self.line_to_name(line)
         record = self.book.data.get(name_normal)
         if record is None:
-            print(f"Контакт з ім'ям '{name_normal}' не знайдено.")
+            self.view.render(f"Контакт з ім'ям '{name_normal}' не знайдено.")
             return
         if not isinstance(record, NoteRecord):
-            print(f"Для контакта '{name_normal}' не підтримуються нотатки.")
+            self.view.render(f"Для контакта '{name_normal}' не підтримуються нотатки.")
             return
         note_text = input('Введіть нотатку: ')
         tags = input('Введіть теги: ')
         record.add_note(note_text, tags)
-        print(f"Заметка додана до контакта {name_normal}.")
+        self.view.render(f"Заметка додана до контакта {name_normal}.")
 
     def do_find_note_by_name(self, line):
         name = self.line_to_name(line)
         record = self.book.data.get(name)
         if not record:
-            print(f"Контакт з ім'ям '{name}' не знайдено.")
+            self.view.render(f"Контакт з ім'ям '{name}' не знайдено.")
             return
         table = Table(show_header=True, header_style="bold cyan", border_style='bold yellow')
         table.add_column('Name')
@@ -632,9 +652,9 @@ class Controller():
             for note in record.notes:
                 table.add_row(name, note.value, note.tags, note.date)
                 table.add_section()
-            console.print(table)
+            self.view.render(table)
         else:
-            print(f"Для контакта '{name}' не знайдено нотаток або вони не підтримуються.")
+            self.view.render(f"Для контакта '{name}' не знайдено нотаток або вони не підтримуються.")
 
     def do_delete_all_notes(self, line):
         name_normal = self.line_to_name(line)
@@ -642,31 +662,31 @@ class Controller():
             record = self.book[name_normal]
             if isinstance(record, NoteRecord):
                 record.notes.clear()
-                print(f"Усі нотатки для '{name_normal}' було видалено.")
+                self.view.render(f"Усі нотатки для '{name_normal}' було видалено.")
             else:
-                print("Для цього контакта нотатки не підтримуються.")
+                self.view.render("Для цього контакта нотатки не підтримуються.")
         else:
-            print("Контакт не знайдено.")
+            self.view.render("Контакт не знайдено.")
 
     def do_edit_note(self, line):
         name = self.line_to_name(line)
         record = self.book.data.get(name)
         if record is None:
-            print(f"Контакт з ім'ям '{name}' не знайдено.")
+            self.view.render(f"Контакт з ім'ям '{name}' не знайдено.")
             return
         new_text= input("Введіть нову нотатку: ")
         new_tags = input("Введіть новий тег: ")
         record.edit_note(new_text, new_tags)
-        print("Примітка успішно відредагована.")
+        self.view.render("Примітка успішно відредагована.")
 
     def do_sort_files(self, line):
         if not line:
-            print("Введіть шлях до папки, яку треба сортувати")
+            self.view.render("Введіть шлях до папки, яку треба сортувати")
             return
         try:
             run(line)
         except FileNotFoundError:
-            print('Така папка не існує на диску. Можливо треба ввести повний шлях\n')
+            self.view.render('Така папка не існує на диску. Можливо треба ввести повний шлях\n')
 
 
 class CommandValidator(Validator):
@@ -838,6 +858,8 @@ def handle_command(command):
 
 
 def main():
+    console_view = ConsoleView()
+    controller = Controller(view=console_view)
     controller.do_load()
     print("Ласкаво просимо до Адресної Книги")
     controller.do_when('0')
