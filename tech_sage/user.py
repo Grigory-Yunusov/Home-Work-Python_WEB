@@ -197,5 +197,7 @@ while True:
         controller.do_add_user()
     elif command == "enter":
         controller.do_enter()
+    elif command == "list_book":
+        controller.do_list_book()
     else:
         print("Невідома команда. Спробуйте ще раз.")
