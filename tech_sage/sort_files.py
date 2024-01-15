@@ -4,6 +4,7 @@ from pathlib import Path
 from normalize_for_sort import normalize
 from rich.console import Console
 from rich.table import Table
+import concurrent.futures
 
 # словник з розширеннями файлів, що оброблюються
 DICT_FOR_EXT = {'archives': ['ZIP', 'GZ', 'TAR'],
@@ -59,26 +60,37 @@ def work_with_directories (path_: Path, action):
                     work_with_directories (dir, action = 'del')
                     print ('Велика вкладеність папок. Запусти програму ще раз')
 
-# функція власне сортування, параметр action - для другого прогону
-# з нормалізацією та переміщенням
-# перший прогон - тільки для інформації скільки і чого є 
-def sorting (path_, action = False):
-    for file in path_.iterdir(): #ім'я файлу з розширенням
-        if file.is_dir():
-            if action:
-                sorting (file, action = True) #рекурсуємо, якщо папка
-            else: sorting (file) #рекурсуємо, якщо папка
-        else:
-            all_files.append (filetype (file.suffix)) # список усіх типів
-# нормалізую ім'я файлу та переміщую у відповідну папку
-            if action: 
-                file_name_norm = f'{normalize (file.stem)}{file.suffix}'
-                file.replace (PATH / filetype (file.suffix) / file_name_norm)
-# а тут розпаковую архів
-                if filetype (file.suffix) == 'archives':
-                    shutil.unpack_archive (PATH / 'archives' / file_name_norm, 
-                                           PATH / 'archives' / file.stem)
-    return all_files
+def sorting(path_):
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+        for file in path_.iterdir():
+            if file.is_dir():
+                future = executor.submit(sorting, file)
+                futures.append(future)
+            else:
+                future = executor.submit(handle_file, file)
+                futures.append(future)
+
+        for future in concurrent.futures.as_completed(futures):
+            all_files.extend(future.result())
+
+# Окрема функція для обробки одного файлу
+def handle_file(file):
+    results = []
+    file_type = filetype(file.suffix)
+    results.append(file_type)
+    if file_type != 'other':
+        file_name_norm = f'{normalize(file.stem)}{file.suffix}'
+        new_path = PATH / file_type / file_name_norm
+
+        file.replace(new_path)
+        if file_type == 'archives':
+            try:
+                shutil.unpack_archive(new_path, PATH / 'archives' / file.stem)
+            except shutil.ReadError:
+                print(f"Не вдалося розпакувати архів: {file_name_norm}")
+
+    return results
 
 # функція із діалогами для коректної роботи як консольний скрипт
 def run (line):
