@@ -3,8 +3,8 @@ import pickle
 import hashlib
 from pathlib import Path
 from collections import UserDict
-
 from rich.table import Table
+from rich.console import Console
 
 
 def generate_filename(username):
@@ -77,11 +77,15 @@ class UserRegistration:
             else:
                 return username
 
+
     def is_username_taken(self, username):
         for user in self.users:
             if user.username == username:
                 return True
         return False
+
+
+
 
     def get_valid_password(self):
         while True:
@@ -119,8 +123,9 @@ class UserBook(UserDict):
 
     def __init__(self, owner_username):
         self.file = generate_filename(owner_username)
-        # self.record_id = 0
-        # self.record = {}
+        self.data ={}
+        self.record_id = 0
+        self.record = {}
         self.load()
         super().__init__()
 
@@ -175,18 +180,23 @@ class Controller:
         else:
             print("Помилка індитифікації")
 
+ 
 
     def do_list_book(self):
         if not self.book.data:
             print("Адресна книга порожня.")
         else:
-            table = Table(show_header=True, header_style="bold magenta", border_style='bold violet')
-            table.add_column('Name')
+            # Створюємо об’єкт таблиці з необхідними заголовками
+            table = Table(show_header=True, header_style="bold violet", border_style="bold magenta")
+            table.add_column("User", style="dim", width=12)  # Додаємо заголовок User
+            table.add_column("Username", style="dim", width=12)  # Додаємо заголовок Username
+            table.add_column("Email", style="dim", width=20)    # Додаємо заголовок Email
 
-            for name, record in self.book.data.items():
-                table.add_row(name)
-                table.add_section()
-            print(table)
+            # Додаємо рядки з інформацією користувачів
+            for record in self.book.data.values():
+                table.add_row(record.name, record.username, record.email)  # Змінено звертання до атрибутів
+                
+            print(table)  # Виводимо таблицю
 
 
 controller = Controller()
@@ -199,5 +209,11 @@ while True:
         controller.do_enter()
     elif command == "list_book":
         controller.do_list_book()
+    elif command == "exit":
+        controller.do_exit()
+    elif command == "save":
+        controller.do_save()
+    elif command == "load":
+        controller.do_load()
     else:
         print("Невідома команда. Спробуйте ще раз.")
